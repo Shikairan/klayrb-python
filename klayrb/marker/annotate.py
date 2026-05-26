@@ -16,7 +16,7 @@ from klayrb.marker.category_layers import (
     category_rule_id,
 )
 from klayrb.marker.geometry import um_to_dbu
-from klayrb.marker.layer_map_io import default_layer_map_path, write_layer_map_txt
+from klayrb.marker.layer_map_io import default_layer_map_path, write_layer_map_csv
 
 # 默认硬编码标注层
 DEFAULT_MARKER_LAYER: Tuple[int, int] = (999, 0)
@@ -178,7 +178,7 @@ def annotate_gds_with_layer_map(
     gds_in: str,
     rdb_in: str,
     gds_out: str,
-    layer_map_path: str | None = None,
+    layer_map_path: str | None = None,  # default: <gds_out_stem>_layer_map.csv
     error_layer_base: int = 10000,
     marker_datatype: int = 0,
     marker_size_um: float = DEFAULT_MARKER_SIZE_UM,
@@ -221,12 +221,7 @@ def annotate_gds_with_layer_map(
     category_layers = built.category_to_layer_index
     entries = built.entries
 
-    write_layer_map_txt(
-        map_path,
-        entries,
-        gds_path=gds_out_path,
-        rdb_path=rdb_in_path,
-    )
+    write_layer_map_csv(map_path, entries)
 
     cell_by_name = {c.name: c for c in layout.each_cell()}
     half_dbu = um_to_dbu(marker_size_um, effective_dbu)

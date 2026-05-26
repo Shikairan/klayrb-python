@@ -26,7 +26,7 @@ def test_run_check_mocked_drc(mock_run, tmp_path):
     gds = tmp_path / "layout.gds"
     lyrdb = tmp_path / "layout.lyrdb"
     marked = tmp_path / "layout_annotated.gds"
-    layer_map = tmp_path / "layout_annotated_layer_map.txt"
+    layer_map = tmp_path / "layout_annotated_layer_map.csv"
 
     layout = db.Layout()
     top = layout.create_cell("TOP")

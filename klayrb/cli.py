@@ -36,13 +36,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--layer-map",
         type=Path,
         default=None,
-        help="Output layer map txt (default: <marked-gds>_layer_map.txt)",
+        help="Output layer map CSV (default: <marked-gds>_layer_map.csv)",
     )
     check.add_argument(
         "--annotate-mode",
         choices=("layer_map", "legacy", "geometry"),
         default="layer_map",
-        help="GDS marking style (default: layer_map = per-category layers + txt)",
+        help="GDS marking style (default: layer_map = per-category layers + CSV)",
     )
     check.add_argument(
         "--klayout-path",

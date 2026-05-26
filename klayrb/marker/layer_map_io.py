@@ -1,72 +1,65 @@
-"""Read/write layer ↔ DRC category mapping files."""
+"""Read/write layer ↔ DRC category mapping as CSV."""
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from klayrb.marker.category_layers import LayerMapEntry
 
-_HEADER_LINES = (
-    "# klayrb layer map",
-    "# generated_by: klayrb",
-)
-_COLUMN_HEADER = "layer\tdatatype\tcategory_id\trule_id\tdescription"
+CSV_COLUMNS = ("layer", "datatype", "rule_id", "error")
 
 
 def default_layer_map_path(gds_out: Path) -> Path:
-    return gds_out.with_name(gds_out.stem + "_layer_map.txt")
+    return gds_out.with_name(gds_out.stem + "_layer_map.csv")
 
 
-def write_layer_map_txt(
-    path: Path,
-    entries: List[LayerMapEntry],
-    *,
-    gds_path: Optional[Path] = None,
-    rdb_path: Optional[Path] = None,
-) -> Path:
-    """Write TSV layer map with comment header."""
+def write_layer_map_csv(path: Path, entries: List[LayerMapEntry]) -> Path:
+    """Write CSV with only the layer ↔ error mapping table (no comments)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    lines = list(_HEADER_LINES)
-    if gds_path is not None:
-        lines.append(f"# gds: {gds_path}")
-    if rdb_path is not None:
-        lines.append(f"# rdb: {rdb_path}")
-    lines.append(_COLUMN_HEADER)
-
-    for entry in entries:
-        desc = entry.description.replace("\t", " ").replace("\n", " ")
-        lines.append(
-            f"{entry.gds_layer}\t{entry.datatype}\t{entry.category_id}\t"
-            f"{entry.rule_id}\t{desc}"
-        )
-
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(CSV_COLUMNS)
+        for entry in entries:
+            writer.writerow(
+                [
+                    entry.gds_layer,
+                    entry.datatype,
+                    entry.rule_id,
+                    entry.description,
+                ]
+            )
     return path
 
 
 def read_layer_map(path: Path) -> List[LayerMapEntry]:
-    """Parse a layer map file written by ``write_layer_map_txt``."""
+    """Parse a layer map CSV written by ``write_layer_map_csv``."""
     path = Path(path)
     entries: List[LayerMapEntry] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("layer\t"):
-            continue
-        parts = line.split("\t")
-        if len(parts) < 5:
-            continue
-        entries.append(
-            LayerMapEntry(
-                gds_layer=int(parts[0]),
-                datatype=int(parts[1]),
-                category_id=int(parts[2]),
-                rule_id=parts[3],
-                description=parts[4],
+
+    with path.open(encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        if reader.fieldnames is None:
+            return entries
+        for row in reader:
+            layer_key = "layer" if "layer" in row else "gds_layer"
+            error_key = "error" if "error" in row else "description"
+            if layer_key not in row:
+                continue
+            entries.append(
+                LayerMapEntry(
+                    gds_layer=int(row[layer_key]),
+                    datatype=int(row.get("datatype", 0)),
+                    category_id=int(row.get("category_id", 0)),
+                    rule_id=row.get("rule_id", ""),
+                    description=row.get(error_key, ""),
+                )
             )
-        )
     return entries
+
+
+# Backward-compatible alias
+write_layer_map_txt = write_layer_map_csv

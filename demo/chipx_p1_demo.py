@@ -10,7 +10,7 @@ Outputs under ``demo/output/`` by default:
 
 - ``P1_chipx.lyrdb`` — Marker Browser
 - ``P1_chipx_annotated.gds`` — 按规则分 layer 方框标注（10000+）
-- ``P1_chipx_annotated_layer_map.txt`` — layer ↔ 规则说明
+- ``P1_chipx_annotated_layer_map.csv`` — layer ↔ 错误对照表
 """
 
 from __future__ import annotations
@@ -195,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     marked_path = out / (
         "P1_chipx_marked.gds" if annotate_mode == "geometry" else "P1_chipx_annotated.gds"
     )
-    layer_map_path = out / "P1_chipx_annotated_layer_map.txt"
+    layer_map_path = out / "P1_chipx_annotated_layer_map.csv"
 
     print(f"输入 GDS : {args.gds}")
     print(f"规则文件 : {args.lydrc}")

@@ -35,7 +35,7 @@ def _make_two_category_rdb(tmp_path: Path) -> tuple[str, str]:
 def test_layer_map_two_categories(tmp_path):
     gds_in, rdb_in = _make_two_category_rdb(tmp_path)
     gds_out = str(tmp_path / "out.gds")
-    map_path = str(tmp_path / "out_layer_map.txt")
+    map_path = str(tmp_path / "out_layer_map.csv")
 
     result = annotate_gds_with_layer_map(
         gds_in,
@@ -64,9 +64,12 @@ def test_layer_map_two_categories(tmp_path):
     if label_layer is not None:
         assert top.shapes(label_layer).size() == 0
 
+    content = Path(map_path).read_text(encoding="utf-8")
+    assert content.startswith("layer,datatype,rule_id,error\n")
+    assert "RULE_A" in content
+    assert "RULE_B" in content
+
     entries = read_layer_map(Path(map_path))
     assert len(entries) == 2
-    rule_ids = {e.rule_id for e in entries}
-    assert rule_ids == {"RULE_A", "RULE_B"}
-    layers = {e.gds_layer for e in entries}
-    assert layers == {10000, 10001}
+    assert {e.rule_id for e in entries} == {"RULE_A", "RULE_B"}
+    assert {e.gds_layer for e in entries} == {10000, 10001}

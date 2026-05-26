@@ -83,7 +83,7 @@ print(result.violation_count, result.categories)
 from klayrb import annotate_gds_with_layer_map
 annotate_gds_with_layer_map(
     "layout.gds", "layout.lyrdb", "layout_annotated.gds",
-    layer_map_path="layout_annotated_layer_map.txt",
+    layer_map_path="layout_annotated_layer_map.csv",
 )
 
 # 分步调用
@@ -131,11 +131,11 @@ PYTHONPATH=. python3 -m pytest tests/chipx_tfln/ -v -m "not chipx_drc"
 
 ### Chipx + P1 Demo
 
-一键演示（规则 + P1 GDS），**默认 layer_map**：每类违规一层 + `*_layer_map.txt`：
+一键演示（规则 + P1 GDS），**默认 layer_map**：每类违规一层 + `*_layer_map.csv`：
 
 ```bash
 ./demo/run_demo.sh
-# 输出: demo/output/P1_chipx.lyrdb, P1_chipx_annotated.gds, P1_chipx_annotated_layer_map.txt
+# 输出: demo/output/P1_chipx.lyrdb, P1_chipx_annotated.gds, P1_chipx_annotated_layer_map.csv
 ```
 
 说明见 [`demo/README.md`](demo/README.md)。

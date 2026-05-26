@@ -67,4 +67,4 @@ class DrcCheckConfig:
         if self.layer_map_path is not None:
             return self.layer_map_path
         marked = self.resolve_marked_gds_path()
-        return marked.with_name(marked.stem + "_layer_map.txt")
+        return marked.with_name(marked.stem + "_layer_map.csv")
