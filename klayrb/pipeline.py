@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from klayrb.config import DrcCheckConfig
+from klayrb.marker.annotate import AnnotateGdsResult, annotate_gds_with_drc_errors
 from klayrb.marker.applicator import MarkerApplyResult, apply_markers_to_layout
 from klayrb.marker.browser import MarkerBrowserGenerator, MarkerBrowserResult
 from klayrb.viewer.noop import NoopLayoutViewAdapter, default_view_adapter
@@ -20,6 +21,7 @@ class DrcCheckResult:
     marker_result: MarkerBrowserResult
     marked_gds_path: Optional[Path] = None
     apply_result: Optional[MarkerApplyResult] = None
+    annotate_result: Optional[AnnotateGdsResult] = None
     warnings: List[str] = field(default_factory=list)
 
     @property
@@ -61,17 +63,30 @@ def run_check(
 
     marked_path: Optional[Path] = None
     apply_result: Optional[MarkerApplyResult] = None
+    annotate_result: Optional[AnnotateGdsResult] = None
 
     if config.apply_markers:
         marked_path = config.resolve_marked_gds_path()
         assert config.lyrdb_path is not None
-        apply_result = apply_markers_to_layout(
-            gds_path=config.gds_path,
-            lyrdb_path=marker_result.lyrdb_path,
-            output_gds_path=marked_path,
-            error_layer_base=config.error_layer_base,
-        )
-        warnings.extend(apply_result.warnings)
+        if config.hard_annotate:
+            annotate_result = annotate_gds_with_drc_errors(
+                str(config.gds_path),
+                str(marker_result.lyrdb_path),
+                str(marked_path),
+                marker_layer=config.marker_layer,
+                label_layer=config.label_layer,
+                marker_size_um=config.marker_size_um,
+                dbu_um=config.annotate_dbu_um,
+            )
+            warnings.extend(annotate_result.warnings)
+        else:
+            apply_result = apply_markers_to_layout(
+                gds_path=config.gds_path,
+                lyrdb_path=marker_result.lyrdb_path,
+                output_gds_path=marked_path,
+                error_layer_base=config.error_layer_base,
+            )
+            warnings.extend(apply_result.warnings)
 
     if adapter.is_available() and marker_result.rdb is not None:
         adapter.load_layout(str(config.gds_path))
@@ -82,5 +97,6 @@ def run_check(
         marker_result=marker_result,
         marked_gds_path=marked_path,
         apply_result=apply_result,
+        annotate_result=annotate_result,
         warnings=warnings,
     )

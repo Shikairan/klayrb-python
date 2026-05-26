@@ -44,6 +44,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Only generate .lyrdb, do not write marked GDS",
     )
     check.add_argument(
+        "--hard-annotate",
+        action="store_true",
+        help="Use fixed layers 999/0 boxes and 999/1 labels (annotate_gds_with_drc_errors)",
+    )
+    check.add_argument(
+        "--marker-size-um",
+        type=float,
+        default=2.0,
+        help="Half-size of hard-annotate marker box in microns",
+    )
+    check.add_argument(
         "--lyrdb-only",
         action="store_true",
         help="Skip DRC run; use existing --lyrdb and only mark GDS",
@@ -84,6 +95,8 @@ def _cmd_check(args: argparse.Namespace) -> int:
         error_layer_base=args.error_layer_base,
         apply_markers=not args.no_mark_gds,
         run_drc=not args.lyrdb_only,
+        hard_annotate=args.hard_annotate,
+        marker_size_um=args.marker_size_um,
     )
 
     try:

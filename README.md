@@ -79,6 +79,10 @@ result = run_check(DrcCheckConfig(
 ))
 print(result.violation_count, result.categories)
 
+# 硬标注：layer 999/0 方框 + 999/1 规则名文本
+from klayrb import annotate_gds_with_drc_errors
+annotate_gds_with_drc_errors("layout.gds", "layout.lyrdb", "layout_annotated.gds")
+
 # 分步调用
 from klayrb.drc import run_drc_batch
 run_drc_batch(

@@ -10,8 +10,10 @@ Import API (no pip install required; add repo root to PYTHONPATH)::
 from klayrb.config import DrcCheckConfig
 from klayrb.pipeline import DrcCheckResult, run_check
 from klayrb.marker import (
+    AnnotateGdsResult,
     MarkerBrowserResult,
     MarkerApplyResult,
+    annotate_gds_with_drc_errors,
     apply_markers_to_layout,
     generate_lyrdb,
 )
@@ -21,6 +23,8 @@ __all__ = [
     "DrcCheckConfig",
     "DrcCheckResult",
     "run_check",
+    "annotate_gds_with_drc_errors",
+    "AnnotateGdsResult",
     "generate_lyrdb",
     "apply_markers_to_layout",
     "MarkerBrowserResult",

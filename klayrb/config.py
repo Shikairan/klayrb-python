@@ -21,6 +21,12 @@ class DrcCheckConfig:
     error_layer_base: int = 10000
     apply_markers: bool = True
     run_drc: bool = True
+    # 硬标注模式：固定 layer 999/0 方框 + 999/1 文本（见 annotate_gds_with_drc_errors）
+    hard_annotate: bool = False
+    marker_layer: tuple = (999, 0)
+    label_layer: tuple = (999, 1)
+    marker_size_um: float = 2.0
+    annotate_dbu_um: float = 0.001
 
     def __post_init__(self) -> None:
         self.gds_path = Path(self.gds_path)
