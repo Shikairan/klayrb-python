@@ -128,11 +128,12 @@ PYTHONPATH=. python3 -m pytest tests/chipx_tfln/ -v -m "not chipx_drc"
 
 ### Chipx + P1 Demo
 
-一键演示完整 DRC 流程（规则 + 样例 GDS）：
+一键演示完整 DRC 流程（规则 + 样例 GDS），**默认硬标注** layer 999/0 + 999/1：
 
 ```bash
 ./demo/run_demo.sh
 # 或: PYTHONPATH=. python3 demo/chipx_p1_demo.py
+# 输出: demo/output/P1_chipx.lyrdb , demo/output/P1_chipx_annotated.gds
 ```
 
 说明见 [`demo/README.md`](demo/README.md)。

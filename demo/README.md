@@ -3,7 +3,9 @@
 对仓库内 **Chipx DRC 规则** 与 **P1 样例 GDS** 跑完整流程：
 
 1. KLayout 批处理 DRC → `demo/output/P1_chipx.lyrdb`（Marker Browser）
-2. 将违规写入错误层 → `demo/output/P1_chipx_marked.gds`
+2. **硬标注** → `demo/output/P1_chipx_annotated.gds`
+   - **999/0**：违规位置方框（默认半边长 2 µm）
+   - **999/1**：规则名文本（如 `LD_FC_COR_S`）
 
 ## 输入文件
 
@@ -21,52 +23,76 @@ pip install -r requirements.txt
 **KLayout 可执行文件**（与 `pip install klayout` 的 Python 绑定不同）必须单独安装。
 
 ```bash
-# 检查能否找到 klayout
 PYTHONPATH=. python3 scripts/locate_klayout.py
-
-# 若提示未找到，设置路径后运行 demo
-export KLAYRB_KLAYOUT=/path/to/klayout
-./demo/run_demo.sh
+export KLAYRB_KLAYOUT=/path/to/klayout   # 若未在 PATH
 ```
 
 ## 运行
 
-**预览模式**（无需 KLayout，查看版图与规则条数）：
+**预览**（无需 KLayout）：
 
 ```bash
 PYTHONPATH=. python3 demo/chipx_p1_demo.py --preview
 ```
 
-**完整 DRC**（需 `klayout` 可执行文件）：
+**完整 Demo**（DRC + 硬标注，默认）：
 
 ```bash
-# 方式 1：脚本
-chmod +x demo/run_demo.sh
 ./demo/run_demo.sh
-
-# 方式 2：Python
+# 或
 PYTHONPATH=. python3 demo/chipx_p1_demo.py
 ```
 
-可选参数：
+**仅有 .lyrdb 时，只做硬标注**：
 
 ```bash
-./demo/run_demo.sh --output-dir demo/output --timeout 1200
-./demo/run_demo.sh --no-mark-gds          # 只生成 .lyrdb
-./demo/run_demo.sh --klayout-path /path/to/klayout
+PYTHONPATH=. python3 demo/chipx_p1_demo.py \
+  --annotate-only \
+  --lyrdb demo/output/P1_chipx.lyrdb
 ```
 
+## 可选参数
+
+| 参数 | 说明 |
+|------|------|
+| `--no-mark-gds` | 只生成 `.lyrdb` |
+| `--lyrdb PATH` | 跳过 DRC，使用已有报告 |
+| `--annotate-only` | 仅硬标注（必须配合 `--lyrdb`） |
+| `--category-layers` | 改用 layer 10000+ 分类几何（非默认硬标注） |
+| `--marker-size-um 2.0` | 方框半边长（µm） |
+| `--klayout-path` | KLayout 可执行文件路径 |
+
 ## 查看结果
+
+Marker Browser + 原版图：
 
 ```bash
 klayout tests/chipx_tfln/data/P1-20240625-SYD-LN600E300[17X15]-ITLA-V1.5.gds \
   -m demo/output/P1_chipx.lyrdb
 ```
 
-在 KLayout 菜单 **Verification → Marker Browser** 中按规则类别浏览违规。
+硬标注 GDS（999/0、999/1）：
 
-标记版图 `P1_chipx_marked.gds` 在 GDS layer `10000+` 上按 DRC 类别绘制错误几何，便于在无 GUI 时检查。
+```bash
+klayout demo/output/P1_chipx_annotated.gds
+```
+
+## Python API（与 Demo 相同逻辑）
+
+```python
+from klayrb import annotate_gds_with_drc_errors
+
+annotate_gds_with_drc_errors(
+    "tests/chipx_tfln/data/P1-20240625-SYD-LN600E300[17X15]-ITLA-V1.5.gds",
+    "demo/output/P1_chipx.lyrdb",
+    "demo/output/P1_chipx_annotated.gds",
+    marker_layer=(999, 0),
+    label_layer=(999, 1),
+    marker_size_um=2.0,
+    dbu_um=0.001,
+)
+```
 
 ## 输出目录
 
-`demo/output/` 已加入 `.gitignore`，不会提交生成的 `.lyrdb` / `*_marked.gds`。
+`demo/output/` 已 `.gitignore`，不提交生成的 `.lyrdb` / `*_annotated.gds`。

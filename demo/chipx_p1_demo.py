@@ -6,7 +6,10 @@ Run from repository root::
 
     PYTHONPATH=. python3 demo/chipx_p1_demo.py
 
-Outputs under ``demo/output/`` by default.
+Outputs under ``demo/output/`` by default:
+
+- ``P1_chipx.lyrdb`` — Marker Browser
+- ``P1_chipx_annotated.gds`` — 硬标注（layer 999/0 方框 + 999/1 规则名）
 """
 
 from __future__ import annotations
@@ -83,11 +86,18 @@ def _print_summary(result) -> None:
 
     if result.marked_gds_path:
         print()
-        print(f"标记 GDS: {result.marked_gds_path}")
-        if result.apply_result:
-            print(f"写入 marker 图形数: {result.apply_result.shapes_written}")
-            if result.apply_result.warnings:
-                print(f"警告数: {len(result.apply_result.warnings)}")
+        print(f"输出 GDS: {result.marked_gds_path}")
+        if result.annotate_result:
+            ar = result.annotate_result
+            print("硬标注层: 999/0 方框, 999/1 文本")
+            print(f"  方框数: {ar.markers_written}")
+            print(f"  文本数: {ar.labels_written}")
+            if ar.items_skipped:
+                print(f"  跳过项: {ar.items_skipped}")
+        elif result.apply_result:
+            print(f"分类错误层 (10000+): {result.apply_result.shapes_written} 个图形")
+        if result.warnings:
+            print(f"警告数: {len(result.warnings)}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -118,6 +128,22 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Use existing .lyrdb (skip DRC); implies marking unless --no-mark-gds",
     )
+    parser.add_argument(
+        "--category-layers",
+        action="store_true",
+        help="Use per-category layers 10000+ instead of default hard annotate 999/0+999/1",
+    )
+    parser.add_argument(
+        "--marker-size-um",
+        type=float,
+        default=2.0,
+        help="Hard-annotate box half-size in microns (default 2.0)",
+    )
+    parser.add_argument(
+        "--annotate-only",
+        action="store_true",
+        help="Only hard-annotate: requires --lyrdb, skips DRC",
+    )
     args = parser.parse_args(argv)
 
     if str(REPO_ROOT) not in sys.path:
@@ -139,7 +165,12 @@ def main(argv: list[str] | None = None) -> int:
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     lyrdb_path = args.lyrdb if args.lyrdb else out / "P1_chipx.lyrdb"
-    marked_path = out / "P1_chipx_marked.gds"
+    use_hard = not args.category_layers
+    marked_path = (
+        out / "P1_chipx_annotated.gds"
+        if use_hard
+        else out / "P1_chipx_marked.gds"
+    )
 
     print(f"输入 GDS : {args.gds}")
     print(f"规则文件 : {args.lydrc}")
@@ -148,6 +179,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.preview:
         return _run_preview(args.gds, args.lydrc)
+
+    if args.annotate_only:
+        if args.lyrdb is None or not args.lyrdb.is_file():
+            print("error: --annotate-only 需要已有 --lyrdb 文件", file=sys.stderr)
+            return 1
+        return _run_annotate_only(args, lyrdb_path, marked_path)
 
     run_drc = args.lyrdb is None
     if run_drc:
@@ -165,6 +202,11 @@ def main(argv: list[str] | None = None) -> int:
         print("正在运行 DRC（可能需要数分钟）...")
         print()
 
+    if use_hard and not args.no_mark_gds:
+        print("标注模式: 硬写入 layer 999/0 (方框) + 999/1 (规则名)")
+    elif not args.no_mark_gds:
+        print("标注模式: 按规则分类 layer 10000+")
+
     config = DrcCheckConfig(
         gds_path=args.gds,
         lydrc_path=args.lydrc,
@@ -174,6 +216,8 @@ def main(argv: list[str] | None = None) -> int:
         drc_timeout_s=args.timeout,
         apply_markers=not args.no_mark_gds,
         run_drc=run_drc,
+        hard_annotate=use_hard and not args.no_mark_gds,
+        marker_size_um=args.marker_size_um,
     )
 
     try:
@@ -185,8 +229,48 @@ def main(argv: list[str] | None = None) -> int:
     _print_summary(result)
     print("在 KLayout GUI 中打开:")
     print(f"  klayout {args.gds} -m {result.lyrdb_path}")
+    if result.marked_gds_path:
+        print("查看硬标注 GDS:")
+        print(f"  klayout {result.marked_gds_path}")
 
     return 0 if result.violation_count == 0 else 2
+
+
+def _run_annotate_only(
+    args: argparse.Namespace,
+    lyrdb_path: Path,
+    gds_out: Path,
+) -> int:
+    """仅执行 annotate_gds_with_drc_errors（已有 .lyrdb）。"""
+    from klayrb.marker.annotate import annotate_gds_with_drc_errors
+    from klayrb.marker.browser import load_report_database, summarize_report_database
+
+    print("仅硬标注（跳过 DRC）")
+    print(f"  .lyrdb : {lyrdb_path}")
+    print(f"  输出   : {gds_out}")
+    print()
+
+    try:
+        ann = annotate_gds_with_drc_errors(
+            str(args.gds),
+            str(lyrdb_path),
+            str(gds_out),
+            marker_size_um=args.marker_size_um,
+        )
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    summary = summarize_report_database(load_report_database(lyrdb_path))
+    print("--- 硬标注完成 ---")
+    print(f"方框 (999/0): {ann.markers_written}")
+    print(f"文本 (999/1): {ann.labels_written}")
+    print(f"违规总数 (.lyrdb): {summary.violation_count}")
+    if ann.warnings:
+        print(f"警告: {len(ann.warnings)}")
+    print()
+    print(f"klayout {gds_out}")
+    return 0 if summary.violation_count == 0 else 2
 
 
 if __name__ == "__main__":
