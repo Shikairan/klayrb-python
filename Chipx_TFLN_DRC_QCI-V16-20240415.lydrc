@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>drc</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>false</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>true</show-in-menu>
+ <group-name>drc_scripts</group-name>
+ <menu-path>tools_menu.drc.end</menu-path>
+ <interpreter>dsl</interpreter>
+ <dsl-interpreter-name>drc-dsl-xml</dsl-interpreter-name>
+ <text># =============================================================================
+# TuringQ LNOI (薄膜铌酸锂) DRC Design Manual V1
+# 基于LNP600调整，从SOI工艺迁移至LNOI工艺
+# Author: WGQ
+# Final adjustment date: 2026/04/09
+# =============================================================================
+
+report("DRC report")
+
+# =============================================================================
+# 第一部分：图层定义 (Layer Definitions)
+# 说明：定义所有需要检查的GDS输入层，格式为 input(层号, 数据类型)
+# =============================================================================
+
+# 文字/标注层
+words    = input(1001, 0)
+
+# 薄膜铌酸锂核心层 - 光波导核心结构 (层11/0)
+ld_fc_cor    = input(11, 0)
+
+# 光栅耦合器层 - 用于光纤-芯片耦合
+ld_fc_gc     = input(11, 2)
+
+# 氮化硅层 - 辅助工艺层
+nl       = input(1111, 0)
+
+# 金属1层 - 电极和互联金属（层类型1表示金属）
+m1       = input(6, 0)
+
+# 钛/氮化钛加热器层 - 热调谐元件
+tin      = input(51, 0)
+
+# 焊盘层 - 电学测试和键合接口
+pad      = input(55, 0)
+
+# 深蚀刻层 - 定义需要深刻蚀的区域
+detch    = input(35, 0)
+
+# 对准标记层 - 光刻对准用
+mark     = input(12, 0)
+
+# 电极层 - 独立电极定义
+ld_electrode = input(53, 0)
+
+# 核心层-包层蚀刻控制层（数据类型32）-&gt; 实际为层12/1
+ld_fc_cor_ec_cld    = input(12, 1)
+
+# 包层（覆层）层 - 波导上包层（数据类型1）
+ld_fc_cld= input(11, 1)
+
+# 核心层-蚀刻控制层（数据类型31）
+ld_fc_cor_ec = input(11, 1)
+
+# 核心层-密集图形（数据类型41）- 用于OPC或工艺补偿
+ld_fc_cor_dense = input(1, 41)
+
+# 波导核心-蚀刻控制层（数据类型31）
+ld_wg_cor_ec = input(12, 1)
+
+# 波导核心-密集图形（数据类型41）
+ld_wg_cor_dense = input(2, 41)
+
+# =============================================================================
+# 第二部分：基础参数定义 (Basic Parameters)
+# 说明：定义容差参数，用于补偿制造过程中的边缘粗糙度
+# =============================================================================
+
+# 容差计算公式：2*√2 个数据库单位，约2.828 DBU
+# 应用于宽度检查以允许多边形边缘的制造粗糙度
+delta = (2*2**0.5).dbu
+
+# 间隙检测容忍度：0.5nm（用于捕获1nm级别的间隙）
+gap_tolerance = 2.nm
+
+# EC层尖端区域最小线宽限制：0.2um
+min_ec_tip_width = 0.2.um
+
+# =============================================================================
+# 第三部分：薄膜铌酸锂波导层规则 (Lithium Niobate Waveguide Rules)
+# =============================================================================
+
+# -------------------------------------
+# 3.1 核心层间距规则 (LD_FC_COR_S)
+# -------------------------------------
+# 规则说明：检查光波导核心图形之间的最小间距
+# 应用场景：避免相邻波导间模式耦合
+min_ld_fc_cor_s = 1.nm
+
+r_ld_fc_cor_s = ld_fc_cor.space(square, min_ld_fc_cor_s)
+r_ld_fc_cor_s.output("LD_FC_COR_S: ld_fc_cor space &lt; #{'%.12g' % min_ld_fc_cor_s} µm")
+
+# -------------------------------------
+# 3.2 光栅耦合器间距规则 (LD_FC_GC_S)
+# -------------------------------------
+# 规则说明：检查光栅耦合器图形之间的最小间距
+# 应用场景：确保多个光栅耦合器间无串扰
+min_ld_fc_gc_s = 100.nm
+
+r_ld_fc_gc_s = ld_fc_gc.space(square, min_ld_fc_gc_s)
+r_ld_fc_gc_s.output("LD_FC_GC_S: ld_fc_gc space &lt; #{'%.12g' % min_ld_fc_gc_s} µm")
+
+# -------------------------------------
+# 3.3 核心层宽度规则 (LD_FC_COR_W)
+# -------------------------------------
+# 规则说明：检查光波导核心最小线宽
+# 应用场景：确保波导单模传输条件，180nm为典型单模波导宽度
+min_ld_fc_cor_w = 180.nm
+
+r_ld_fc_cor_w = ld_fc_cor.width(projection, min_ld_fc_cor_w - delta, angle_limit(80))
+r_ld_fc_cor_w.output("LD_FC_COR_W: ld_fc_cor width&lt; #{'%.12g' % min_ld_fc_cor_w} µm")
+
+# 3.3.1 核心层宽度规则 (ld_fc_cor_ec_cld_W)
+# -------------------------------------
+# 规则说明：检查光波导核心最小线宽
+# 应用场景：确保波导单模传输条件，180nm为典型单模波导宽度
+min_ld_fc_cor_ec_cld_W = 200.nm
+
+r_ld_fc_cor_ec_cld_W = ld_fc_cor_ec_cld.width(projection, min_ld_fc_cor_ec_cld_W - delta, angle_limit(80))
+r_ld_fc_cor_ec_cld_W.output("LD_FC_COR_EC_CLD_W: ld_fc_cor_ec_cld width&lt; #{'%.12g' % min_ld_fc_cor_ec_cld_W} µm")
+
+# -------------------------------------
+# 3.4 光栅耦合器宽度规则 (LD_FC_GC_W)
+# -------------------------------------
+# 规则说明：检查光栅耦合器结构最小线宽
+# 应用场景：光栅齿宽控制，影响耦合效率和带宽
+min_ld_fc_gc_w = 140.nm
+
+r_ld_fc_gc_w = ld_fc_gc.width(projection, min_ld_fc_gc_w - delta, angle_limit(80))
+r_ld_fc_gc_w.output("LD_FC_GC_W: ld_fc_gc width&lt; #{'%.12g' % min_ld_fc_gc_w} µm")
+
+# -------------------------------------
+# 3.5 核心层与包层蚀刻控制层间隙检查 (LD_FC_COR_TO_EC_CLD_GAP)
+# -------------------------------------
+# 规则说明：检查层11/0（核心层）与层12/1（包层蚀刻控制层）之间是否存在间隙
+# 问题描述：图片显示两图层间出现约1nm间隙，这会导致蚀刻控制失效或工艺异常
+# 检查逻辑：通过外扩后相交检查，找出未连接的区域
+# 容忍度：允许0.5nm以内的制造误差，超过则报错
+
+# 方法D：非重叠区域检查（检查两层未接触的部分）
+# 找出ld_fc_cor_ec_cld中未与ld_fc_cor重叠的部分（间隙区域）
+non_overlapping_cld = ld_fc_cor_ec_cld.not(ld_fc_cor)
+# 对这些非重叠区域进行尺寸筛选，只报告小的间隙（排除大面积分离）
+small_gap_in_cld = non_overlapping_cld.sized(-gap_tolerance).sized(gap_tolerance)
+small_gap_in_cld.output("SMALL_GAP_CLD: Small gap regions in layer 12/1 not overlapping layer 11/0")
+
+non_overlapping_cor = ld_fc_cor.not(ld_fc_cor_ec_cld)
+small_gap_in_cor = non_overlapping_cor.sized(-gap_tolerance).sized(gap_tolerance)
+small_gap_in_cor.output("SMALL_GAP_COR: Small gap regions in layer 11/0 not overlapping layer 12/1")
+# =============================================================================
+# 第四部分：对准标记分离规则 (Mark Separation Rules)
+# =============================================================================
+# 规则说明：确保对准标记与其他关键层保持足够距离
+# 重要性：防止标记影响器件性能，同时确保光刻对准精度
+
+# -------------------------------------
+# 4.1 标记与包层蚀刻控制层分离 (LD_FC_COR_EC_CLD_SEP)
+# -------------------------------------
+# 参考设计：64_mzi_layout.gds
+min_ld_fc_cor_ec_cld_sep = 100.um
+
+r_ld_fc_cor_ec_cld_sep_gc = mark.separation(ld_fc_cor_ec_cld, min_ld_fc_cor_ec_cld_sep)
+r_ld_fc_cor_ec_cld_sep_gc.output("LD_FC_COR_EC_CLD_SEP: mark separation distance&lt; #{'%.12g' % min_ld_fc_cor_ec_cld_sep} µm")
+
+# -------------------------------------
+# 4.2 标记与包层层分离 (LD_FC_CLD_SEP)
+# -------------------------------------
+# 参考设计：D22.gds
+min_ld_fc_cld_sep = 100.um
+
+r_ld_fc_cld_sep_gc = mark.separation(ld_fc_cld, min_ld_fc_cld_sep)
+r_ld_fc_cld_sep_gc.output("LD_FC_CLD_SEP: mark separation distance&lt; #{'%.12g' % min_ld_fc_cld_sep} µm")
+
+# -------------------------------------
+# 4.3 标记与核心层分离 (LD_FC_COR_SEP)
+# -------------------------------------
+# 参考设计：OPA_test1.gds
+min_ld_fc_cor_sep = 100.um
+
+r_ld_fc_cor_sep_gc = mark.separation(ld_fc_cor, min_ld_fc_cor_sep)
+r_ld_fc_cor_sep_gc.output("LD_FC_COR_SEP: mark separation distance&lt; #{'%.12g' % min_ld_fc_cor_sep} µm")
+
+# -------------------------------------
+# 4.4 标记与电极层分离 (LD_ELECTRODE_SEP)
+# -------------------------------------
+# 参考设计：IQ_layout.gds
+min_ld_electrode_sep = 100.um
+
+r_ld_electrode_sep_gc = mark.separation(ld_electrode, min_ld_electrode_sep)
+r_ld_electrode_sep_gc.output("LD_ELECTRODE_SEP: mark separation distance&lt; #{'%.12g' % min_ld_electrode_sep} µm")
+
+# =============================================================================
+# 第五部分：多光束光刻颜色定义规则 (FCB Color Definition)
+# =============================================================================
+# 规则说明：为多重图案光刻(MPT)定义颜色分割规则
+# 应用：将密集图形分配到不同曝光掩模，提高分辨率
+
+min_edge = 1.nm
+insert_cor = input("0-20/0-20")
+
+# 检查指定角度范围内的边缘间距，用于颜色冲突检测
+r_insert_s = insert_cor.space(whole_edges,min_edge,angle_limit(10)).with_angle(0.3,45)
+r_insert_s.output("INSERT_COR_S: insert_cor space &lt; #{'%.12g' % min_edge} µm")
+
+# =============================================================================
+# 第六部分：金属层(M1)规则 (Metal Layer Rules)
+# =============================================================================
+
+# -------------------------------------
+# 6.1 M1间距规则 (M1_S)
+# -------------------------------------
+# 规则说明：金属线间最小间距，防止电学短路和工艺桥接
+min_m1_s = 2.um
+
+r_m1_s = m1.space(square, min_m1_s)
+r_m1_s.output("M1_S: M1 space &lt; #{'%.12g' % min_m1_s} µm")
+
+# -------------------------------------
+# 6.2 M1宽度规则 (M1_W)
+# -------------------------------------
+# 规则说明：金属线最小宽度，确保电学连通性和工艺可靠性
+min_m1_w = 5.um
+
+r_m1_w = m1.width(projection, min_m1_w - delta, angle_limit(80))
+r_m1_w.output("M1_W: M1 width&lt; #{'%.12g' % min_m1_w} µm")
+
+# -------------------------------------
+# 6.3 M1包围Pad规则 (M1_in_Pad_with_enclose_range)
+# -------------------------------------
+# 规则说明：M1必须充分包围Pad，确保电学连接和机械强度
+min_diff_pad_m1 = 5.um
+
+r_diff_pad_m1 = m1.enclosing(pad, min_diff_pad_m1)
+r_diff_pad_m1.output("M1_in_Pad_with_enclose_range: M1 enclose Pad &lt; #{'%.12g' % (min_diff_pad_m1)} µm")
+
+# -------------------------------------
+# 6.4 Pad在M1内规则 (Pad_in_M1)
+# -------------------------------------
+# 规则说明：Pad必须完全位于M1内部，禁止Pad超出M1区域
+pad_in_m1 = pad.overlapping(m1) - m1
+pad_in_m1.output("Pad_in_M1: pad must be inside m1")
+
+# -------------------------------------
+# 6.5 M1曼哈顿几何规则 (M1_angle_less_90)
+# -------------------------------------
+# 规则说明：M1只允许水平或垂直边缘，禁止斜边
+# 原因：简化光刻工艺，提高图形保真度
+
+# 提取非矩形M1图形
+non_recilinear = m1.non_rectilinear
+non_recilinear_polygon_all_edges = non_recilinear.edges
+  
+# 分离水平和垂直边
+horizontal = non_recilinear_polygon_all_edges.with_angle(0)
+vertical = non_recilinear_polygon_all_edges.with_angle(90)
+
+# 非曼哈顿边 = 总边 - 水平边 - 垂直边
+r_nonmanhattan = non_recilinear_polygon_all_edges - horizontal - vertical
+r_nonmanhattan.output("MANHATTAN: M1's edges are neigther vertical nor horizontal")
+
+# -------------------------------------
+# 6.6 M1自重叠规则 (M1_overlap_self)
+# -------------------------------------
+# 规则说明：检测M1在Pad区域外的自重叠（设计错误）
+pad_sized = pad.sized(5.um)
+
+r_m1_overlap = m1.raw.merged(2).not(pad_sized)
+r_m1_overlap.output("M1_overlap_self: The overlapped part of m1")
+
+# -------------------------------------
+# 6.7 M1与深蚀刻层重叠规则 (M1_overlap_detch)
+# -------------------------------------
+# 规则说明：检测M1与深蚀刻层的重叠（通常禁止）
+m1_overlap_detch = m1.and(detch)
+m1_overlap_detch.output("M1_overlap_detch: The overlapped part between m1 and detch")
+
+# -------------------------------------
+# 6.8 M1连接加热器规则 (M1_not_connect_heater)
+# -------------------------------------
+# 规则说明：检测未连接加热器的孤立M1线（设计错误）
+m1_not_connect_heater = m1.clean.not_interacting(tin)
+m1_not_connect_heater.output("M1_not_connect_heater: The M1 part which doesn't connect with the heater")
+
+# =============================================================================
+# 第七部分：加热器层(TIN)规则 (Heater Layer Rules)
+# =============================================================================
+# 注：TIN加热器通常通过M1外扩0.1um/side定义最终加热器区域
+
+# -------------------------------------
+# 7.1 TIN间距规则 (TIN_S)
+# -------------------------------------
+min_tin_s = 2.um
+
+r_tin_s = tin.space(square, min_tin_s)
+r_tin_s.output("TIN_S: TIN space &lt; #{'%.12g' % min_tin_s} µm")
+
+# -------------------------------------
+# 7.2 TIN宽度规则 (TIN_W)
+# -------------------------------------
+min_tin_w = 2.um
+
+r_tin_w = tin.width(projection, min_tin_w - delta, angle_limit(80))
+r_tin_w.output("TIN_W: TIN width&lt; #{'%.12g' % min_tin_w} µm")
+
+# -------------------------------------
+# 7.3 TIN面积规则 (TIN_A)
+# -------------------------------------
+# 规则说明：禁止过小的加热器碎片，确保热学性能可控
+min_tin_a = 4.um2
+
+r_tin_a = tin.with_area(0, min_tin_a)
+r_tin_a.output("TIN_A: TIN area &lt; #{'%.12g' % min_tin_a} µm²")
+
+# =============================================================================
+# 第八部分：焊盘层(PAD)规则 (Pad Layer Rules)
+# =============================================================================
+
+# -------------------------------------
+# 8.1 Pad间距规则 (PAD_S)
+# -------------------------------------
+min_pad_s = 15.um
+
+r_pad_s = pad.space(square, min_pad_s)
+r_pad_s.output("PAD_S: PAD space &lt; #{'%.12g' % min_pad_s} µm")
+
+# -------------------------------------
+# 8.2 Pad宽度规则 (PAD_W)
+# -------------------------------------
+# 角度限制85度（比M1宽松，允许Pad有轻微斜角）
+min_pad_w = 50.um
+
+r_pad_w = pad.width(projection, min_pad_w - delta, angle_limit(85))
+r_pad_w.output("PAD_W: PAD width&lt; #{'%.12g' % min_pad_w} µm")
+
+# =============================================================================
+# 第九部分：蚀刻控制(EC)规则 (Etch Control Rules)
+# =============================================================================
+# 规则思路：EC和EC包层分开定义，先布尔合并再检查包含关系
+# 目的：确保不同区域（核心 vs 波导）的蚀刻控制层正确交叠
+
+# 合并核心层相关的EC层
+ec_cor = ld_fc_cor_ec.join(ld_fc_cor_dense)
+
+# 合并波导层相关的EC层  
+ec_cor_wg = ld_wg_cor_ec.join(ld_wg_cor_dense)
+
+# -------------------------------------
+# 9.1 EC包围规则 (EC_cor_in_EC_wg_with_enclose_range)
+# -------------------------------------
+# 规则说明：核心EC层必须充分包围波导EC层，确保蚀刻一致性
+min_diff_ec_wg = 270.nm
+
+r_diff_ec_wg = ec_cor.enclosed(ec_cor_wg, min_diff_ec_wg, projection)
+r_diff_ec_wg.output("EC_cor_in_EC_wg_with_enclose_range: EC_cor enclose EC_wg &lt; #{'%.12g' % (min_diff_ec_wg)} µm")
+
+
+# 9.2 EC包围规则 (EC_cor_in_EC_wg_with_enclose_range)
+# -------------------------------------
+# 规则说明：核心EC层必须充分包围波导EC层，确保蚀刻一致性
+min_diff_ec_cor = 200.nm
+
+r_diff_ec_cor = ec_cor.enclosed(ec_cor, min_diff_ec_cor, projection)
+r_diff_ec_cor.output("EC_cor_in_EC_cor_with_enclose_range: EC_cor enclose EC_cor &lt; #{'%.12g' % (min_diff_ec_cor)} µm")
+# =============================================================================
+# DRC规则检查完成
+# =============================================================================
+</text>
+</klayout-macro>
