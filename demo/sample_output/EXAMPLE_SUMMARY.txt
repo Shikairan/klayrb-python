@@ -1,0 +1,28 @@
+# 完整 Demo 运行后的示例输出（需本机安装 KLayout）
+
+============================================================
+  klayrb Chipx TFLN DRC Demo
+============================================================
+
+KLayout: /usr/bin/klayout
+输入 GDS : .../P1-20240625-SYD-LN600E300[17X15]-ITLA-V1.5.gds
+规则文件 : .../Chipx_TFLN_DRC_QCI-V16-20240415.lydrc
+输出目录 : demo/output
+
+正在运行 DRC（可能需要数分钟）...
+
+--- DRC 结果摘要 ---
+Marker Browser (.lyrdb): demo/output/P1_chipx.lyrdb
+违规总数: <依版图而定>
+
+类别                                               数量
+------------------------------------------------------------
+LD_FC_COR_S: ...                                      ...
+M1_S: ...                                             ...
+...
+
+标记 GDS: demo/output/P1_chipx_marked.gds
+写入 marker 图形数: ...
+
+在 KLayout GUI 中打开:
+  klayout <gds> -m demo/output/P1_chipx.lyrdb

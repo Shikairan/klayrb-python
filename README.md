@@ -98,6 +98,17 @@ PYTHONPATH=. python3 -m pytest tests/chipx_tfln/ -v -m "not chipx_drc"
 
 详见 [`tests/chipx_tfln/README.md`](tests/chipx_tfln/README.md)。
 
+### Chipx + P1 Demo
+
+一键演示完整 DRC 流程（规则 + 样例 GDS）：
+
+```bash
+./demo/run_demo.sh
+# 或: PYTHONPATH=. python3 demo/chipx_p1_demo.py
+```
+
+说明见 [`demo/README.md`](demo/README.md)。
+
 ## 仓库内 DRC 规则
 
 - [`Chipx_TFLN_DRC_QCI-V16-20240415.lydrc`](Chipx_TFLN_DRC_QCI-V16-20240415.lydrc) — TuringQ LNOI 工艺 DRC 规则集
