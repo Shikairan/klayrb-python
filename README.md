@@ -79,9 +79,12 @@ result = run_check(DrcCheckConfig(
 ))
 print(result.violation_count, result.categories)
 
-# 硬标注：layer 999/0 方框 + 999/1 规则名文本
-from klayrb import annotate_gds_with_drc_errors
-annotate_gds_with_drc_errors("layout.gds", "layout.lyrdb", "layout_annotated.gds")
+# 按类别分 layer + txt 图例（默认，无 GDS 文本）
+from klayrb import annotate_gds_with_layer_map
+annotate_gds_with_layer_map(
+    "layout.gds", "layout.lyrdb", "layout_annotated.gds",
+    layer_map_path="layout_annotated_layer_map.txt",
+)
 
 # 分步调用
 from klayrb.drc import run_drc_batch
@@ -128,12 +131,11 @@ PYTHONPATH=. python3 -m pytest tests/chipx_tfln/ -v -m "not chipx_drc"
 
 ### Chipx + P1 Demo
 
-一键演示完整 DRC 流程（规则 + 样例 GDS），**默认硬标注** layer 999/0 + 999/1：
+一键演示（规则 + P1 GDS），**默认 layer_map**：每类违规一层 + `*_layer_map.txt`：
 
 ```bash
 ./demo/run_demo.sh
-# 或: PYTHONPATH=. python3 demo/chipx_p1_demo.py
-# 输出: demo/output/P1_chipx.lyrdb , demo/output/P1_chipx_annotated.gds
+# 输出: demo/output/P1_chipx.lyrdb, P1_chipx_annotated.gds, P1_chipx_annotated_layer_map.txt
 ```
 
 说明见 [`demo/README.md`](demo/README.md)。

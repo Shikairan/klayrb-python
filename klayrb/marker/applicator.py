@@ -11,6 +11,7 @@ import klayout.db as db
 import klayout.rdb as rdb
 
 from klayrb.marker.browser import load_report_database
+from klayrb.marker.category_layers import build_category_layers
 from klayrb.marker.geometry import iter_item_shapes
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,10 @@ def apply_markers_to_layout(
     database = load_report_database(lyrdb_path)
     dbu_um = layout.dbu
 
-    category_layers = _build_category_layer_map(
+    built = build_category_layers(
         layout, database, error_layer_base=error_layer_base
     )
+    category_layers = built.category_to_layer_index
     cell_by_name = {c.name: c for c in layout.each_cell()}
 
     shapes_written = 0
@@ -96,22 +98,3 @@ def apply_markers_to_layout(
         items_skipped=items_skipped,
         warnings=warnings,
     )
-
-
-def _build_category_layer_map(
-    layout: db.Layout,
-    database: rdb.ReportDatabase,
-    *,
-    error_layer_base: int,
-) -> Dict[int, int]:
-    """Map RDB category id -> layout layer index."""
-    mapping: Dict[int, int] = {}
-    index = 0
-    for category in database.each_category():
-        cid = category.rdb_id()
-        gds_layer = error_layer_base + index
-        layer_info = db.LayerInfo(gds_layer, 0)
-        layer_info.name = f"DRC_ERR_{category.name() or cid}"
-        mapping[cid] = layout.layer(layer_info)
-        index += 1
-    return mapping

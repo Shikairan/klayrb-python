@@ -25,7 +25,8 @@ def _build_minimal_lyrdb(path: Path) -> None:
 def test_run_check_mocked_drc(mock_run, tmp_path):
     gds = tmp_path / "layout.gds"
     lyrdb = tmp_path / "layout.lyrdb"
-    marked = tmp_path / "layout_marked.gds"
+    marked = tmp_path / "layout_annotated.gds"
+    layer_map = tmp_path / "layout_annotated_layer_map.txt"
 
     layout = db.Layout()
     top = layout.create_cell("TOP")
@@ -43,10 +44,15 @@ def test_run_check_mocked_drc(mock_run, tmp_path):
         lydrc_path=REPO_ROOT / "Chipx_TFLN_DRC_QCI-V16-20240415.lydrc",
         lyrdb_path=lyrdb,
         marked_gds_path=marked,
+        layer_map_path=layer_map,
+        annotate_mode="layer_map",
     )
     result = run_check(config)
 
     assert result.lyrdb_path == lyrdb
     assert result.violation_count == 1
     assert marked.is_file()
+    assert layer_map.is_file()
+    assert result.layer_map_result is not None
+    assert result.layer_map_result.markers_written == 1
     mock_run.assert_called_once()

@@ -30,7 +30,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--marked-gds",
         type=Path,
         default=None,
-        help="Output GDS with error layers (default: <gds>_marked.gds)",
+        help="Output annotated GDS (default: <gds>_annotated.gds)",
+    )
+    check.add_argument(
+        "--layer-map",
+        type=Path,
+        default=None,
+        help="Output layer map txt (default: <marked-gds>_layer_map.txt)",
+    )
+    check.add_argument(
+        "--annotate-mode",
+        choices=("layer_map", "legacy", "geometry"),
+        default="layer_map",
+        help="GDS marking style (default: layer_map = per-category layers + txt)",
     )
     check.add_argument(
         "--klayout-path",
@@ -46,13 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument(
         "--hard-annotate",
         action="store_true",
-        help="Use fixed layers 999/0 boxes and 999/1 labels (annotate_gds_with_drc_errors)",
+        help="Deprecated: same as --annotate-mode legacy",
     )
     check.add_argument(
         "--marker-size-um",
         type=float,
         default=2.0,
-        help="Half-size of hard-annotate marker box in microns",
+        help="Half-size of marker box in microns (layer_map / legacy)",
     )
     check.add_argument(
         "--lyrdb-only",
@@ -63,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--error-layer-base",
         type=int,
         default=10000,
-        help="Base GDS layer number for DRC error categories",
+        help="Base GDS layer number for per-category markers",
     )
     check.add_argument(
         "--timeout",
@@ -85,16 +97,22 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _cmd_check(args: argparse.Namespace) -> int:
+    annotate_mode = args.annotate_mode
+    if args.hard_annotate:
+        annotate_mode = "legacy"
+
     config = DrcCheckConfig(
         gds_path=args.gds,
         lydrc_path=args.lydrc,
         lyrdb_path=args.lyrdb,
         marked_gds_path=args.marked_gds,
+        layer_map_path=args.layer_map,
         klayout_path=args.klayout_path,
         drc_timeout_s=args.timeout,
         error_layer_base=args.error_layer_base,
         apply_markers=not args.no_mark_gds,
         run_drc=not args.lyrdb_only,
+        annotate_mode=annotate_mode,
         hard_annotate=args.hard_annotate,
         marker_size_um=args.marker_size_um,
     )
@@ -110,8 +128,16 @@ def _cmd_check(args: argparse.Namespace) -> int:
 
     if result.marked_gds_path:
         print(f"marked_gds: {result.marked_gds_path}")
-        if result.apply_result:
-            print(f"marker_shapes: {result.apply_result.shapes_written}")
+    if result.layer_map_path:
+        print(f"layer_map: {result.layer_map_path}")
+    if result.layer_map_result:
+        print(f"marker_boxes: {result.layer_map_result.markers_written}")
+        print(f"drc_layers: {len(result.layer_map_result.entries)}")
+    elif result.annotate_result:
+        print(f"marker_boxes: {result.annotate_result.markers_written}")
+        print(f"labels: {result.annotate_result.labels_written}")
+    elif result.apply_result:
+        print(f"marker_shapes: {result.apply_result.shapes_written}")
 
     for warning in result.warnings[:20]:
         print(f"warning: {warning}", file=sys.stderr)

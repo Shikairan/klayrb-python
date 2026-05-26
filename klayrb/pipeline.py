@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import List, Optional
 
 from klayrb.config import DrcCheckConfig
-from klayrb.marker.annotate import AnnotateGdsResult, annotate_gds_with_drc_errors
+from klayrb.marker.annotate import (
+    AnnotateGdsResult,
+    AnnotateLayerMapResult,
+    annotate_gds_with_drc_errors,
+    annotate_gds_with_layer_map,
+)
 from klayrb.marker.applicator import MarkerApplyResult, apply_markers_to_layout
 from klayrb.marker.browser import MarkerBrowserGenerator, MarkerBrowserResult
 from klayrb.viewer.noop import NoopLayoutViewAdapter, default_view_adapter
@@ -20,8 +25,10 @@ class DrcCheckResult:
 
     marker_result: MarkerBrowserResult
     marked_gds_path: Optional[Path] = None
+    layer_map_path: Optional[Path] = None
     apply_result: Optional[MarkerApplyResult] = None
     annotate_result: Optional[AnnotateGdsResult] = None
+    layer_map_result: Optional[AnnotateLayerMapResult] = None
     warnings: List[str] = field(default_factory=list)
 
     @property
@@ -62,13 +69,30 @@ def run_check(
         marker_result = generator.load_existing(config.lyrdb_path)
 
     marked_path: Optional[Path] = None
+    layer_map_path: Optional[Path] = None
     apply_result: Optional[MarkerApplyResult] = None
     annotate_result: Optional[AnnotateGdsResult] = None
+    layer_map_result: Optional[AnnotateLayerMapResult] = None
 
     if config.apply_markers:
         marked_path = config.resolve_marked_gds_path()
         assert config.lyrdb_path is not None
-        if config.hard_annotate:
+        mode = config.annotate_mode
+
+        if mode == "layer_map":
+            layer_map_path = config.resolve_layer_map_path()
+            layer_map_result = annotate_gds_with_layer_map(
+                str(config.gds_path),
+                str(marker_result.lyrdb_path),
+                str(marked_path),
+                layer_map_path=str(layer_map_path),
+                error_layer_base=config.error_layer_base,
+                marker_datatype=config.marker_datatype,
+                marker_size_um=config.marker_size_um,
+                dbu_um=config.annotate_dbu_um,
+            )
+            warnings.extend(layer_map_result.warnings)
+        elif mode == "legacy":
             annotate_result = annotate_gds_with_drc_errors(
                 str(config.gds_path),
                 str(marker_result.lyrdb_path),
@@ -96,7 +120,9 @@ def run_check(
     return DrcCheckResult(
         marker_result=marker_result,
         marked_gds_path=marked_path,
+        layer_map_path=layer_map_path,
         apply_result=apply_result,
         annotate_result=annotate_result,
+        layer_map_result=layer_map_result,
         warnings=warnings,
     )

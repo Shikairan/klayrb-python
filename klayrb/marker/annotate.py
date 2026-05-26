@@ -10,7 +10,13 @@ import klayout.db as db
 import klayout.rdb as rdb
 
 from klayrb.marker.browser import load_report_database
+from klayrb.marker.category_layers import (
+    LayerMapEntry,
+    build_category_layers,
+    category_rule_id,
+)
 from klayrb.marker.geometry import um_to_dbu
+from klayrb.marker.layer_map_io import default_layer_map_path, write_layer_map_txt
 
 # 默认硬编码标注层
 DEFAULT_MARKER_LAYER: Tuple[int, int] = (999, 0)
@@ -130,7 +136,12 @@ def annotate_gds_with_drc_errors(
         layout_cell.shapes(marker_layer_index).insert(marker_box)
         markers_written += 1
 
-        label = _category_label(database, item.category_id())
+        category = database.category_by_id(item.category_id())
+        label = (
+            category_rule_id(category)
+            if category is not None
+            else f"DRC_{item.category_id()}"
+        )
         text = db.Text(
             label,
             db.Trans(db.Vector(cx, cy)),
@@ -151,18 +162,122 @@ def annotate_gds_with_drc_errors(
     )
 
 
-def _category_label(database: rdb.ReportDatabase, category_id: int) -> str:
-    category = database.category_by_id(category_id)
-    if category is None:
-        return f"DRC_{category_id}"
-    name = category.name() or category.path() or f"DRC_{category_id}"
-    name = name.strip().strip("'\"")
-    # 取规则 ID（冒号前）作为简短标签
-    if ":" in name:
-        name = name.split(":", 1)[0].strip()
-    if len(name) > 64:
-        name = name[:61] + "..."
-    return name
+@dataclass
+class AnnotateLayerMapResult:
+    """Statistics from annotate_gds_with_layer_map."""
+
+    gds_out: str
+    layer_map_path: str
+    entries: List[LayerMapEntry]
+    markers_written: int
+    items_skipped: int
+    warnings: List[str] = field(default_factory=list)
+
+
+def annotate_gds_with_layer_map(
+    gds_in: str,
+    rdb_in: str,
+    gds_out: str,
+    layer_map_path: str | None = None,
+    error_layer_base: int = 10000,
+    marker_datatype: int = 0,
+    marker_size_um: float = DEFAULT_MARKER_SIZE_UM,
+    dbu_um: float = DEFAULT_DBU_UM,
+) -> AnnotateLayerMapResult:
+    """
+    按 RDB 类别分 GDS layer 标注违规（方框 only），并写出 layer 对照 txt。
+
+    同一 category 使用同一 ``(layer, datatype)``；不在 GDS 中写入 Text。
+    """
+    gds_in_path = Path(gds_in)
+    rdb_in_path = Path(rdb_in)
+    gds_out_path = Path(gds_out)
+
+    if not gds_in_path.is_file():
+        raise FileNotFoundError(f"gds_in not found: {gds_in}")
+    if not rdb_in_path.is_file():
+        raise FileNotFoundError(f"rdb_in not found: {rdb_in}")
+
+    map_path = (
+        Path(layer_map_path)
+        if layer_map_path
+        else default_layer_map_path(gds_out_path)
+    )
+
+    layout = db.Layout()
+    layout.read(str(gds_in_path))
+
+    effective_dbu = layout.dbu if layout.dbu and layout.dbu > 0 else dbu_um
+    if effective_dbu <= 0:
+        effective_dbu = DEFAULT_DBU_UM
+
+    database = load_report_database(rdb_in_path)
+    built = build_category_layers(
+        layout,
+        database,
+        error_layer_base=error_layer_base,
+        marker_datatype=marker_datatype,
+    )
+    category_layers = built.category_to_layer_index
+    entries = built.entries
+
+    write_layer_map_txt(
+        map_path,
+        entries,
+        gds_path=gds_out_path,
+        rdb_path=rdb_in_path,
+    )
+
+    cell_by_name = {c.name: c for c in layout.each_cell()}
+    half_dbu = um_to_dbu(marker_size_um, effective_dbu)
+
+    markers_written = 0
+    items_skipped = 0
+    warnings: List[str] = []
+
+    for item in database.each_item():
+        rdb_cell = database.cell_by_id(item.cell_id())
+        if rdb_cell is None:
+            items_skipped += 1
+            warnings.append(f"unknown rdb cell id {item.cell_id()}")
+            continue
+
+        layout_cell = cell_by_name.get(rdb_cell.name())
+        if layout_cell is None:
+            items_skipped += 1
+            warnings.append(f"layout cell not found: {rdb_cell.name()!r}")
+            continue
+
+        layer_index = category_layers.get(item.category_id())
+        if layer_index is None:
+            items_skipped += 1
+            warnings.append(f"unknown category id {item.category_id()}")
+            continue
+
+        anchor = _item_anchor_um(item)
+        if anchor is None:
+            items_skipped += 1
+            warnings.append(f"no geometry for item in cell {rdb_cell.name()!r}")
+            continue
+
+        cx_um, cy_um = anchor
+        cx = um_to_dbu(cx_um, effective_dbu)
+        cy = um_to_dbu(cy_um, effective_dbu)
+        marker_box = db.Box(cx - half_dbu, cy - half_dbu, cx + half_dbu, cy + half_dbu)
+        layout_cell.shapes(layer_index).insert(marker_box)
+        markers_written += 1
+
+    gds_out_path.parent.mkdir(parents=True, exist_ok=True)
+    layout.write(str(gds_out_path))
+
+    return AnnotateLayerMapResult(
+        gds_out=str(gds_out_path),
+        layer_map_path=str(map_path),
+        entries=entries,
+        markers_written=markers_written,
+        items_skipped=items_skipped,
+        warnings=warnings,
+    )
 
 
 def _item_anchor_um(item: rdb.RdbItem) -> Optional[Tuple[float, float]]:
