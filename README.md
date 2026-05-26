@@ -86,6 +86,18 @@ pip install -r requirements.txt
 PYTHONPATH=. pytest tests/ -q
 ```
 
+### Chipx + P1 样例集成测试
+
+专用目录 [`tests/chipx_tfln/`](tests/chipx_tfln/)，使用 `Chipx_TFLN_DRC_QCI-V16-20240415.lydrc` 与 `data/P1-20240625-SYD-LN600E300[17X15]-ITLA-V1.5.gds`：
+
+```bash
+PYTHONPATH=. python3 -m pytest tests/chipx_tfln/ -v
+# 跳过需要 klayout 可执行文件的用例：
+PYTHONPATH=. python3 -m pytest tests/chipx_tfln/ -v -m "not chipx_drc"
+```
+
+详见 [`tests/chipx_tfln/README.md`](tests/chipx_tfln/README.md)。
+
 ## 仓库内 DRC 规则
 
 - [`Chipx_TFLN_DRC_QCI-V16-20240415.lydrc`](Chipx_TFLN_DRC_QCI-V16-20240415.lydrc) — TuringQ LNOI 工艺 DRC 规则集
