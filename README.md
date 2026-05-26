@@ -1,0 +1,91 @@
+# klayrb-python
+
+基于 [python-klayout](https://www.klayout.de/doc/programming/python.html) 的 GDS DRC 检查工具：读取已有 `.lydrc` 规则，对 GDS 执行 KLayout DRC，生成 Marker Browser 用的 `.lyrdb`，并将违规几何写入带错误层的 GDS。
+
+## 依赖
+
+- Python 3.9+
+- `pip install -r requirements.txt`（安装 `klayout` Python 绑定）
+- 系统安装 **KLayout 可执行文件**（用于批处理 DRC：`klayout -b -r ...`），并加入 `PATH`
+
+> **说明**：pip 版 python-klayout **不包含** Ruby DRC 解释器，DRC 必须通过 `klayout` 子进程运行。版图读写与 `.lyrdb` 解析在 Python 内完成。
+
+## 使用方式（无需 pip 安装包）
+
+将仓库根目录加入 `PYTHONPATH`，或在该目录下运行：
+
+```bash
+export PYTHONPATH=/path/to/klayrb-python:$PYTHONPATH
+```
+
+### 命令行
+
+```bash
+python -m klayrb check \
+  --lydrc Chipx_TFLN_DRC_QCI-V16-20240415.lydrc \
+  --gds layout.gds \
+  --lyrdb layout.lyrdb \
+  --marked-gds layout_marked.gds
+```
+
+常用选项：
+
+| 选项 | 说明 |
+|------|------|
+| `--no-mark-gds` | 只生成 `.lyrdb`，不写标记 GDS |
+| `--lyrdb-only` | 跳过 DRC，用已有 `.lyrdb` 写标记 GDS |
+| `--klayout-path` | 指定 `klayout` 可执行文件路径 |
+| `--error-layer-base` | 错误层起始 GDS layer 号（默认 10000） |
+
+退出码：无违规为 0；存在违规为 2；运行错误为 1。
+
+### Python API（供其他工具 import）
+
+```python
+from pathlib import Path
+from klayrb import DrcCheckConfig, run_check
+from klayrb.marker import generate_lyrdb, apply_markers_to_layout
+
+# 完整流程：DRC → .lyrdb → 标记 GDS
+result = run_check(DrcCheckConfig(
+    gds_path=Path("layout.gds"),
+    lydrc_path=Path("Chipx_TFLN_DRC_QCI-V16-20240415.lydrc"),
+    lyrdb_path=Path("layout.lyrdb"),
+    marked_gds_path=Path("layout_marked.gds"),
+))
+print(result.violation_count, result.categories)
+
+# 分步调用
+from klayrb.drc import run_drc_batch
+run_drc_batch(
+    gds_path=Path("layout.gds"),
+    lydrc_path=Path("Chipx_TFLN_DRC_QCI-V16-20240415.lydrc"),
+    lyrdb_path=Path("layout.lyrdb"),
+)
+```
+
+### 在 KLayout GUI 中查看 Marker Browser
+
+```bash
+klayout layout.gds -m layout.lyrdb
+```
+
+## 架构
+
+1. **lydrc_loader**：解析 `.lydrc` XML，提取 DRC DSL。
+2. **batch_script**：注入 `source($input)` / `report(..., $output)` 批处理头。
+3. **runner**：`klayout -b -r batch.drc -rd input=... -rd output=...`
+4. **marker/browser**：加载 `.lyrdb`，统计违规类别（Marker Browser 文件由 KLayout DRC 原生生成）。
+5. **marker/applicator**：将 RDB 几何写入 GDS 错误层（`10000+` 按类别递增）。
+6. **viewer/protocol**：预留 `ILayoutViewAdapter`，默认 `NoopLayoutViewAdapter`（**不**实现 `pya.LayoutView.current()`）。
+
+## 测试
+
+```bash
+pip install -r requirements.txt
+PYTHONPATH=. pytest tests/ -q
+```
+
+## 仓库内 DRC 规则
+
+- [`Chipx_TFLN_DRC_QCI-V16-20240415.lydrc`](Chipx_TFLN_DRC_QCI-V16-20240415.lydrc) — TuringQ LNOI 工艺 DRC 规则集

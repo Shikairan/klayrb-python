@@ -1,0 +1,5 @@
+# python-klayout (import as klayout.db, klayout.rdb, ...)
+klayout>=0.28.0
+
+# tests (optional)
+pytest>=7.0
