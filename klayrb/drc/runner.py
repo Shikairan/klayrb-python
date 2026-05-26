@@ -2,31 +2,106 @@
 
 from __future__ import annotations
 
+import os
+import platform
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, List, Optional
 
 from klayrb.drc.batch_script import write_batch_drc_script
+
+# Override via env: export KLAYRB_KLAYOUT=/path/to/klayout
+_ENV_KLAYOUT = "KLAYRB_KLAYOUT"
+# KLayout's own convention on some installs
+_ENV_KLAYOUT_ALT = "KLAYOUT_HOME"
 
 
 class DrcRunnerError(Exception):
     """Raised when the KLayout batch DRC process fails."""
 
 
-def find_klayout_executable(klayout_path: Optional[Path] = None) -> Path:
-    if klayout_path is not None:
-        path = Path(klayout_path)
-        if not path.is_file():
-            raise DrcRunnerError(f"klayout executable not found: {path}")
-        return path
-    found = shutil.which("klayout")
-    if not found:
-        raise DrcRunnerError(
-            "klayout executable not found on PATH; install KLayout or set klayout_path"
+def _candidate_klayout_paths() -> List[Path]:
+    """Well-known install locations (OS-specific)."""
+    home = Path.home()
+    system = platform.system()
+    candidates: List[Path] = [
+        Path("/usr/bin/klayout"),
+        Path("/usr/local/bin/klayout"),
+        Path("/opt/klayout/klayout"),
+        home / "KLayout" / "klayout",
+        home / ".local" / "bin" / "klayout",
+    ]
+    if system == "Darwin":
+        candidates.extend(
+            [
+                Path("/Applications/KLayout.app/Contents/MacOS/klayout"),
+                Path("/Applications/klayout.app/Contents/MacOS/klayout"),
+                home / "Applications" / "KLayout.app" / "Contents/MacOS/klayout",
+            ]
         )
-    return Path(found)
+    elif system == "Windows":
+        candidates.extend(
+            [
+                Path(r"C:\Program Files\KLayout\klayout.exe"),
+                Path(r"C:\Program Files (x86)\KLayout\klayout.exe"),
+                home / "KLayout" / "klayout.exe",
+            ]
+        )
+    return candidates
+
+
+def _paths_from_env() -> List[Path]:
+    paths: List[Path] = []
+    for key in (_ENV_KLAYOUT, "KLAYOUT_PATH", "KLAYOUT"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            paths.append(Path(value))
+    klayout_home = os.environ.get(_ENV_KLAYOUT_ALT, "").strip()
+    if klayout_home:
+        base = Path(klayout_home)
+        paths.append(base / "klayout")
+        paths.append(base / "klayout.exe")
+    return paths
+
+
+def iter_klayout_search_paths(
+    klayout_path: Optional[Path] = None,
+) -> Iterable[Path]:
+    """Yield paths to probe, in priority order."""
+    if klayout_path is not None:
+        yield Path(klayout_path)
+    for path in _paths_from_env():
+        yield path
+    found = shutil.which("klayout")
+    if found:
+        yield Path(found)
+    for path in _candidate_klayout_paths():
+        yield path
+
+
+def find_klayout_executable(klayout_path: Optional[Path] = None) -> Path:
+    """
+    Resolve the KLayout binary for batch DRC.
+
+    Resolution order: explicit argument → ``KLAYRB_KLAYOUT`` / ``KLAYOUT_PATH``
+    → ``PATH`` → common install directories.
+    """
+    tried: List[str] = []
+    for candidate in iter_klayout_search_paths(klayout_path):
+        tried.append(str(candidate))
+        if candidate.is_file():
+            return candidate.resolve()
+    hint = (
+        "klayout executable not found.\n"
+        "  1) Install KLayout: https://www.klayout.de/build.html\n"
+        "  2) Or set: export KLAYRB_KLAYOUT=/full/path/to/klayout\n"
+        "  3) Or pass: --klayout-path /full/path/to/klayout\n"
+        f"  Searched: {', '.join(tried[:12])}"
+        + (" ..." if len(tried) > 12 else "")
+    )
+    raise DrcRunnerError(hint)
 
 
 def run_drc_batch(

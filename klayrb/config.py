@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,8 @@ class DrcCheckConfig:
             self.marked_gds_path = Path(self.marked_gds_path)
         if self.klayout_path is not None:
             self.klayout_path = Path(self.klayout_path)
+        elif os.environ.get("KLAYRB_KLAYOUT", "").strip():
+            self.klayout_path = Path(os.environ["KLAYRB_KLAYOUT"].strip())
 
     def resolve_marked_gds_path(self) -> Path:
         if self.marked_gds_path is not None:

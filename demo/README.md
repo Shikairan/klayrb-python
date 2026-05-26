@@ -16,7 +16,17 @@
 
 ```bash
 pip install -r requirements.txt
-# 系统需安装 KLayout，且 klayout 在 PATH
+```
+
+**KLayout 可执行文件**（与 `pip install klayout` 的 Python 绑定不同）必须单独安装。
+
+```bash
+# 检查能否找到 klayout
+PYTHONPATH=. python3 scripts/locate_klayout.py
+
+# 若提示未找到，设置路径后运行 demo
+export KLAYRB_KLAYOUT=/path/to/klayout
+./demo/run_demo.sh
 ```
 
 ## 运行

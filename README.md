@@ -6,9 +6,33 @@
 
 - Python 3.9+
 - `pip install -r requirements.txt`（安装 `klayout` Python 绑定）
-- 系统安装 **KLayout 可执行文件**（用于批处理 DRC：`klayout -b -r ...`），并加入 `PATH`
+- 系统安装 **KLayout 可执行文件**（用于批处理 DRC：`klayout -b -r ...`）
 
-> **说明**：pip 版 python-klayout **不包含** Ruby DRC 解释器，DRC 必须通过 `klayout` 子进程运行。版图读写与 `.lyrdb` 解析在 Python 内完成。
+> **说明**：`pip install klayout` 是 Python API，**不能**替代 KLayout 应用程序；DRC 必须调用系统中的 `klayout` 程序。
+
+### 安装 KLayout 并配置路径
+
+下载：https://www.klayout.de/build.html
+
+```bash
+# 诊断：列出搜索路径及是否找到
+PYTHONPATH=. python3 scripts/locate_klayout.py
+```
+
+已安装但报 `not found on PATH` 时：
+
+```bash
+export KLAYRB_KLAYOUT=/完整路径/klayout    # Linux / macOS
+./demo/run_demo.sh --klayout-path /完整路径/klayout
+```
+
+Ubuntu `.deb` 示例（版本号以官网为准）：
+
+```bash
+wget https://www.klayout.org/downloads/Ubuntu-22/klayout_0.28.17-1_amd64.deb
+sudo apt install ./klayout_0.28.17-1_amd64.deb
+which klayout
+```
 
 ## 使用方式（无需 pip 安装包）
 
